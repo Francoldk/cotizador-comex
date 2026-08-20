@@ -79,37 +79,40 @@ export default function Cotizador() {
 
   const gastosLogisticos = inversionTotal - valorFob;
 
-  // Mensaje para exportar a WhatsApp
+  // // Mensaje para exportar a WhatsApp con formato comercial
   const generarTextoWhatsApp = () => {
-    let msg = `*COTIZACIÓN COMEX - ${cliente ? cliente.toUpperCase() : 'CLIENTE'}*\n`;
-    if (producto) msg += `📦 *Producto:* ${producto}\n`;
-    if (hsCode) msg += `🏷 *Posición Arancelaria:* ${hsCode}\n`;
-    msg += `🚢 *Modalidad:* ${
-      modalidad === 'maritimo_formal' ? 'Marítimo LCL Formal' :
+    const tituloModalidad =
+      modalidad === 'maritimo_formal' ? 'Marítimo LCL' :
       modalidad === 'maritimo_grupal' ? 'Marítimo Grupal All In' :
-      modalidad === 'aereo_courier' ? 'Aéreo Courier' : 'All In Aéreo'
-    }\n\n`;
+      modalidad === 'aereo_courier' ? 'Aéreo Courier' : 'All In Aéreo';
 
-    msg += `💵 *Valor FOB:* USD ${valorFob.toFixed(2)}\n`;
-    msg += `🚚 *Flete Internacional:* USD ${flete.toFixed(2)} (${detalleFlete})\n`;
+    let msg = `📦 COTIZACIÓN — ${tituloModalidad}\n`;
+    if (cliente) msg += `👤 Cliente: ${cliente}\n`;
+    if (producto) msg += `🏷️ Producto: ${producto}\n`;
+    if (hsCode) msg += `📑 Posición Arancelaria: ${hsCode}\n`;
+    msg += `━━━━━━━━━━━━━━━\n`;
+    msg += `🚢 Flete internacional: USD ${flete.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
 
     if (!esAllIn) {
-      msg += `🛡 *Seguro (1%):* USD ${seguro.toFixed(2)}\n`;
-      msg += `🏛 *Valor Aduana (CIF):* USD ${valorAduanaCIF.toFixed(2)}\n`;
-      msg += `\n*Desglose Impuestos y Aranceles:*\n`;
-      msg += `• DDI (${ddiPorc}%): USD ${ddiUsd.toFixed(2)}\n`;
-      msg += `• Tasa Estad. (${tasaEstPorc}%): USD ${tasaEstUsd.toFixed(2)}\n`;
-      msg += `• IVA (${ivaPorc}%): USD ${ivaUsd.toFixed(2)}\n`;
-      msg += `• IVA Adic. (${ivaAddPorc}%): USD ${ivaAddUsd.toFixed(2)}\n`;
-      msg += `• Ganancias (${gananciaPorc}%): USD ${gananciaUsd.toFixed(2)}\n`;
-      msg += `• IIBB (${iibbPorc}%): USD ${iibbUsd.toFixed(2)}\n`;
+      msg += `🛡️ Seguro (${seguroPorc}%): USD ${seguro.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      msg += `🧾 Impuestos de importación (estimados):\n`;
+      msg += `   • Derechos (DI): USD ${ddiUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      msg += `   • Tasa estadística (TE): USD ${tasaEstPorc > 0 ? tasaEstUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'Exenta / USD 0.00'}\n`;
+      msg += `   • IVA (${ivaPorc}%): USD ${ivaUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      msg += `   • IVA adicional (${ivaAddPorc}%): USD ${ivaAddUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      msg += `   • Percepción Ganancias (${gananciaPorc}%): USD ${gananciaUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+      msg += `   • Percepción IIBB (${iibbPorc}%): USD ${iibbUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
     }
 
-    msg += `\n═══════════════════════\n`;
-    msg += `📊 *GASTOS LOGÍSTICOS / NACIONALIZACIÓN:* USD ${gastosLogisticos.toFixed(2)}\n`;
-    msg += `💰 *INVERSIÓN TOTAL ESTIMADA:* USD ${inversionTotal.toFixed(2)}\n`;
-    msg += `═══════════════════════\n`;
-    msg += `\n_Cotización sujeta a verificación de documentación y aforo aduanero._`;
+    msg += `━━━━━━━━━━━━━━━\n`;
+    msg += `💰 TOTAL estimado: USD ${gastosLogisticos.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+    msg += `━━━━━━━━━━━━━━━\n`;
+    msg += `Incluye coordinación con tu proveedor, consolidación, flete, firma importadora y despacho aduanero.\n`;
+    if (valorFob > 0) {
+      msg += `ℹ️ No incluye el valor de la mercadería (USD ${valorFob.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}), que le pagás al proveedor.\n`;
+    }
+    msg += `⚠️ Los impuestos son una estimación automática según el producto, sujeta a confirmación del despachante antes de cerrar la operación.`;
+
     return msg;
   };
 
