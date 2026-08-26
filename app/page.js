@@ -1,501 +1,400 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function Cotizador() {
-  // Estado principal
-  const [cliente, setCliente] = useState('');
-  const [producto, setProducto] = useState('');
-  const [palabraBusqueda, setPalabraBusqueda] = useState('');
-  const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
-  const [buscando, setBuscando] = useState(false);
-  const [mostrarResultados, setMostrarResultados] = useState(false);
-  const [hsCode, setHsCode] = useState('');
-  const [modalidad, setModalidad] = useState('maritimo_formal');
-  const [fob, setFob] = useState('');
-  const [cbm, setCbm] = useState('');
-  const [pesoKg, setPesoKg] = useState('');
+  // Datos del Cliente y Mercadería
+  const [clientName, setClientName] = useState('');
+  const [productDesc, setProductDesc] = useState('');
+  const [hscode, setHscode] = useState('');
+  const [fobValue, setFobValue] = useState(1000);
+  
+  // Medidas y Pesos
+  const [weightKg, setWeightKg] = useState(50);
+  const [cbm, setCbm] = useState(0.5);
 
-  // Impuestos y Aranceles
-  const [ddiPorc, setDdiPorc] = useState(20);
-  const [tasaEstPorc, setTasaEstPorc] = useState(3);
-  const [ivaPorc, setIvaPorc] = useState(21);
-  const [ivaAddPorc, setIvaAddPorc] = useState(20);
-  const [gananciaPorc, setGananciaPorc] = useState(6);
-  const [iibbPorc, setIibbPorc] = useState(2.5);
-  const [seguroPorc, setSeguroPorc] = useState(1);
+  // Modalidad y Tarifas
+  const [shippingMode, setShippingMode] = useState('maritimo_compartido');
+  const [unitFreightRate, setUnitFreightRate] = useState(8.5);
 
-  // Teléfono
-  const [telefono, setTelefono] = useState('');
+  // Alícuotas Impositivas
+  const [ddiRate, setDdiRate] = useState(16);
+  const [statRate, setStatRate] = useState(3);
+  const [ivaRate, setIvaRate] = useState(21);
+  const [ivaAdicRate, setIvaAdicRate] = useState(20);
+  const [gananciasRate, setGananciasRate] = useState(6);
+  const [iibbRate, setIibbRate] = useState(2.5);
+
+  // Gastos Locales y Gestión
+  const [localExpenses, setLocalExpenses] = useState(250);
+  const [serviceFee, setServiceFee] = useState(150);
   const [copiado, setCopiado] = useState(false);
-  const [descripcionSeleccionada, setDescripcionSeleccionada] = useState('');
 
-  // Buscar en API
-  const buscarEnVUCE = async () => {
-    if (palabraBusqueda.length < 3) return;
-
-    setBuscando(true);
-    setMostrarResultados(true);
-
-    try {
-      const response = await fetch('/api/vuce', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ palabra: palabraBusqueda }),
-      });
-
-      if (!response.ok) throw new Error('Error en la búsqueda');
-
-      const data = await response.json();
-      if (data.resultados && data.resultados.length > 0) {
-        setResultadosBusqueda(data.resultados);
-      } else {
-        setResultadosBusqueda([]);
-      }
-    } catch (error) {
-      console.error('Error al buscar:', error);
-      setResultadosBusqueda([]);
-    } finally {
-      setBuscando(false);
+  // Cambiar tarifas base según la modalidad
+  const handleModeChange = (mode) => {
+    setShippingMode(mode);
+    switch (mode) {
+      case 'maritimo_compartido':
+        setUnitFreightRate(8.5); // USD por Peso Volumétrico
+        break;
+      case 'maritimo_cbm':
+        setUnitFreightRate(350); // USD por CBM (300-400)
+        break;
+      case 'courier_aereo':
+        setUnitFreightRate(16.5); // USD por Kg (15-18)
+        break;
+      case 'all_in_aereo':
+        setUnitFreightRate(48); // USD por Kg (45-50)
+        break;
     }
   };
 
-  // Seleccionar posición arancelaria
-  const seleccionarArancel = (resultado) => {
-    setHsCode(resultado.ncm);
-    setDescripcionSeleccionada(resultado.descripcion);
+  // Cálculos
+  const volumetricWeight = Number((cbm * 167).toFixed(2));
+  const chargeableWeight = Math.max(weightKg, volumetricWeight);
 
-    if (resultado.aranceles) {
-      setDdiPorc(resultado.aranceles.ddi || 20);
-      setTasaEstPorc(resultado.aranceles.tasaEst || 3);
-      setIvaPorc(resultado.aranceles.iva || 21);
-      setIvaAddPorc(resultado.aranceles.ivaAdd || 20);
-      setGananciaPorc(resultado.aranceles.ganancias || 6);
-      setIibbPorc(resultado.aranceles.iibb || 2.5);
-    }
-
-    setMostrarResultados(false);
-    setPalabraBusqueda('');
-  };
-
-  // Efecto debounce para búsqueda al tipear
-  useEffect(() => {
-    const delayDebounce = setTimeout(() => {
-      if (palabraBusqueda.length >= 3) {
-        buscarEnVUCE();
-      }
-    }, 500);
-
-    return () => clearTimeout(delayDebounce);
-  }, [palabraBusqueda]);
-
-  // Cálculos matemáticos
-  const valorFob = parseFloat(fob) || 0;
-  const valorCbm = parseFloat(cbm) || 0;
-  const valorKg = parseFloat(pesoKg) || 0;
-
-  let flete = 0;
-  let detalleFlete = '';
-
-  if (modalidad === 'maritimo_formal') {
-    const cbmFacturable = Math.max(valorCbm, 0.5);
-    flete = cbmFacturable * 300;
-    detalleFlete = `USD 300 x ${cbmFacturable} CBM (Mín. 0.5 CBM)`;
-  } else if (modalidad === 'maritimo_grupal') {
-    const pesoVolumetrico = valorCbm > 0 ? valorCbm * 167 : 0;
-    const pesoFacturable = Math.max(valorKg, pesoVolumetrico);
-    flete = pesoFacturable * 8.5;
-    detalleFlete = `USD 8.50 x ${pesoFacturable.toFixed(1)} kg (All In Grupal)`;
-  } else if (modalidad === 'aereo_courier') {
-    flete = valorKg * 10;
-    detalleFlete = `USD 10.00 x ${valorKg} kg (Courier)`;
-  } else if (modalidad === 'allin_aereo') {
-    flete = valorKg * 45;
-    detalleFlete = `USD 45.00 x ${valorKg} kg (All In Aéreo)`;
+  let internationalFreight = 0;
+  if (shippingMode === 'maritimo_compartido') {
+    internationalFreight = chargeableWeight * unitFreightRate;
+  } else if (shippingMode === 'maritimo_cbm') {
+    internationalFreight = cbm * unitFreightRate;
+  } else if (shippingMode === 'courier_aereo' || shippingMode === 'all_in_aereo') {
+    internationalFreight = Math.max(weightKg, volumetricWeight) * unitFreightRate;
   }
 
-  const seguro = valorFob * (parseFloat(seguroPorc) / 100);
-  const valorAduanaCIF = valorFob + flete + seguro;
-  const ddiUsd = valorAduanaCIF * (parseFloat(ddiPorc) / 100);
-  const tasaEstUsd = valorFob * (parseFloat(tasaEstPorc) / 100);
-  const baseImponibleIVA = valorAduanaCIF + ddiUsd + tasaEstUsd;
-  const ivaUsd = baseImponibleIVA * (parseFloat(ivaPorc) / 100);
-  const ivaAddUsd = baseImponibleIVA * (parseFloat(ivaAddPorc) / 100);
-  const gananciaUsd = baseImponibleIVA * (parseFloat(gananciaPorc) / 100);
-  const iibbUsd = baseImponibleIVA * (parseFloat(iibbPorc) / 100);
-  const subtotalTributos = ivaUsd + ivaAddUsd + gananciaUsd + iibbUsd;
+  const insurance = Number(((fobValue + internationalFreight) * 0.01).toFixed(2));
+  const cifValue = fobValue + internationalFreight + insurance;
+  const isAllIn = shippingMode === 'all_in_aereo';
 
-  const esAllIn = modalidad === 'maritimo_grupal' || modalidad === 'allin_aereo';
-  const inversionTotal = esAllIn
-    ? valorFob + flete
-    : valorAduanaCIF + ddiUsd + tasaEstUsd + subtotalTributos;
-  const gastosLogisticos = inversionTotal - valorFob;
+  const ddiAmount = isAllIn ? 0 : Number((cifValue * (ddiRate / 100)).toFixed(2));
+  const statAmount = isAllIn ? 0 : Number((cifValue * (statRate / 100)).toFixed(2));
+  const taxBase = isAllIn ? 0 : cifValue + ddiAmount + statAmount;
 
-  // Generar mensaje comercial
-  const generarTextoWhatsApp = () => {
-    const tituloModalidad =
-      modalidad === 'maritimo_formal' ? 'Marítimo LCL' :
-      modalidad === 'maritimo_grupal' ? 'Marítimo Grupal All In' :
-      modalidad === 'aereo_courier' ? 'Aéreo Courier' : 'All In Aéreo';
+  const ivaAmount = isAllIn ? 0 : Number((taxBase * (ivaRate / 100)).toFixed(2));
+  const ivaAdicAmount = isAllIn ? 0 : Number((taxBase * (ivaAdicRate / 100)).toFixed(2));
+  const gananciasAmount = isAllIn ? 0 : Number((taxBase * (gananciasRate / 100)).toFixed(2));
+  const iibbAmount = isAllIn ? 0 : Number((taxBase * (iibbRate / 100)).toFixed(2));
 
-    let msg = `📦 COTIZACIÓN — ${tituloModalidad}\n`;
-    if (cliente) msg += `👤 Cliente: ${cliente}\n`;
-    if (producto) msg += `🏷️ Producto: ${producto}\n`;
-    if (hsCode) msg += `📑 Posición Arancelaria: ${hsCode}\n`;
-    msg += `━━━━━━━━━━━━━━━\n`;
-    msg += `🚢 Flete internacional: USD ${flete.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+  const totalTaxes = ddiAmount + statAmount + ivaAmount + ivaAdicAmount + gananciasAmount + iibbAmount;
+  const grandTotal = cifValue + totalTaxes + (isAllIn ? 0 : localExpenses) + serviceFee;
 
-    if (!esAllIn) {
-      msg += `🛡️ Seguro (${seguroPorc}%): USD ${seguro.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
-      msg += `🧾 Impuestos de importación (estimados):\n`;
-      msg += `   • Derechos (DI): USD ${ddiUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
-      msg += `   • Tasa estadística (TE): USD ${tasaEstPorc > 0 ? tasaEstUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'Exenta'}\n`;
-      msg += `   • IVA (${ivaPorc}%): USD ${ivaUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
-      msg += `   • IVA adicional (${ivaAddPorc}%): USD ${ivaAddUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
-      msg += `   • Percepción Ganancias (${gananciaPorc}%): USD ${gananciaUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
-      msg += `   • Percepción IIBB (${iibbPorc}%): USD ${iibbUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+  // Texto para WhatsApp
+  const generarTextoResumen = () => {
+    return `*COTIZACIÓN DE IMPORTACIÓN - DE CHINA AL MUNDO*
+----------------------------------------
+👤 *Cliente:* ${clientName || 'Consumidor Final'}
+📦 *Producto:* ${productDesc || 'Mercadería General'}
+📑 *Posición Arancelaria:* ${hscode || 'A clasificar'}
+🚢 *Modalidad:* ${
+      shippingMode === 'maritimo_compartido' ? 'Carga Compartida Marítimo (LCL)' :
+      shippingMode === 'maritimo_cbm' ? 'Carga Marítima por CBM' :
+      shippingMode === 'courier_aereo' ? 'Courier Aéreo Express' : 'All In Aéreo'
     }
-
-    msg += `━━━━━━━━━━━━━━━\n`;
-    msg += `💰 TOTAL estimado: USD ${gastosLogisticos.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
-    msg += `━━━━━━━━━━━━━━━\n`;
-    msg += `Incluye coordinación con tu proveedor, consolidación, flete, firma importadora y despacho aduanero.\n`;
-    if (valorFob > 0) {
-      msg += `ℹ️ No incluye el valor de la mercadería (USD ${valorFob.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}), que le pagás al proveedor.\n`;
-    }
-    msg += `⚠️ Los impuestos son una estimación automática según el producto, sujeta a confirmación del despachante antes de cerrar la operación.`;
-
-    return msg;
+----------------------------------------
+💵 *Valor FOB:* $${fobValue.toFixed(2)} USD
+✈️ *Flete Internacional:* $${internationalFreight.toFixed(2)} USD
+🛡️ *Seguro Estimado:* $${insurance.toFixed(2)} USD
+🏛️ *Impuestos y Aduana:* $${totalTaxes.toFixed(2)} USD
+🏢 *Gastos y Gestión:* $${((isAllIn ? 0 : localExpenses) + serviceFee).toFixed(2)} USD
+----------------------------------------
+💰 *TOTAL ESTIMADO:* $${grandTotal.toFixed(2)} USD`;
   };
 
   const copiarAlPortapapeles = () => {
-    navigator.clipboard.writeText(generarTextoWhatsApp());
+    navigator.clipboard.writeText(generarTextoResumen());
     setCopiado(true);
-    setTimeout(() => setCopiado(false), 2000);
+    setTimeout(() => setCopiado(false), 2500);
   };
 
   const enviarWhatsApp = () => {
-    const num = telefono.replace(/\D/g, '');
-    const texto = encodeURIComponent(generarTextoWhatsApp());
-    const url = num ? `https://wa.me/${num}?text=${texto}` : `https://wa.me/?text=${texto}`;
-    window.open(url, '_blank');
+    const texto = encodeURIComponent(generarTextoResumen());
+    window.open(`https://wa.me/?text=${texto}`, '_blank');
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 flex justify-center">
-      <div className="w-full max-w-5xl space-y-6">
-        {/* Encabezado */}
-        <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div style={styles.container}>
+      <style>{`
+        @media print {
+          body { background: #fff !important; padding: 0 !important; }
+          .no-print { display: none !important; }
+          .print-sheet {
+            box-shadow: none !important;
+            border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+          }
+        }
+      `}</style>
+
+      {/* PANEL DE FORMULARIO */}
+      <div style={styles.panel} className="no-print">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+          <img src="/logo.png" alt="Logo" style={{ height: '36px', objectFit: 'contain' }} />
           <div>
-            <h1 className="text-2xl font-bold text-emerald-400">Generador de Cotizaciones COMEX</h1>
-            <p className="text-xs text-slate-400">Búsqueda automática de Aranceles - Marítimo, Aéreo y All In</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">Modalidad:</span>
-            <select
-              value={modalidad}
-              onChange={(e) => setModalidad(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-emerald-400 text-sm font-semibold rounded-lg px-3 py-2 outline-none"
-            >
-              <option value="maritimo_formal">Marítimo LCL Formal ($300/CBM)</option>
-              <option value="maritimo_grupal">Marítimo Grupal All In ($8.5/kg)</option>
-              <option value="aereo_courier">Aéreo Courier ($10/kg)</option>
-              <option value="allin_aereo">All In Aéreo ($45/kg)</option>
-            </select>
+            <h2 style={{ margin: 0, color: '#fff', fontSize: '18px' }}>Cotizador Comex - De China al Mundo</h2>
+            <p style={{ margin: 0, color: '#94a3b8', fontSize: '13px' }}>Cálculo rápido de fletes, cascada impositiva y honorarios</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          {/* Formulario */}
-          <div className="md:col-span-5 bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4">
-            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-2">
-              1. Datos de la Operación
-            </h2>
-
-            {/* Búsqueda arancelaria */}
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400 font-semibold">🔍 Buscar por Producto o NCM</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Ej: repuestos, smartphones, 8708..."
-                  value={palabraBusqueda}
-                  onChange={(e) => setPalabraBusqueda(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald-500 pr-10"
-                />
-                {buscando && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-400 border-t-transparent"></div>
-                  </div>
-                )}
-              </div>
-
-              {mostrarResultados && resultadosBusqueda.length > 0 && (
-                <div className="bg-slate-800 rounded-lg border border-slate-700 max-h-48 overflow-y-auto mt-1 shadow-lg">
-                  {resultadosBusqueda.map((resultado, index) => (
-                    <div
-                      key={index}
-                      onClick={() => seleccionarArancel(resultado)}
-                      className="p-2.5 hover:bg-slate-700 cursor-pointer border-b border-slate-700/60 last:border-0"
-                    >
-                      <div className="text-xs">
-                        <span className="text-emerald-400 font-mono font-bold">{resultado.ncm}</span>
-                        <p className="text-slate-300 truncate">{resultado.descripcion}</p>
-                        <div className="flex gap-2 mt-1 text-[10px] text-slate-400 font-mono">
-                          <span>DDI: {resultado.aranceles?.ddi}%</span>
-                          <span>IVA: {resultado.aranceles?.iva}%</span>
-                          <span>IIBB: {resultado.aranceles?.iibb}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-slate-400 font-semibold">Cliente</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Adrián"
-                  value={cliente}
-                  onChange={(e) => setCliente(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 font-semibold">Producto</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Repuestos"
-                  value={producto}
-                  onChange={(e) => setProducto(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
-            {descripcionSeleccionada && (
-              <div className="bg-emerald-950/30 border border-emerald-800/50 rounded-lg p-2">
-                <p className="text-[10px] text-emerald-400 font-semibold uppercase">NCM Seleccionada:</p>
-                <p className="text-xs text-slate-300">{descripcionSeleccionada}</p>
-              </div>
-            )}
-
-            <div>
-              <label className="text-xs text-slate-400 font-semibold">Posición Arancelaria (NCM)</label>
-              <input
-                type="text"
-                placeholder="Ej: 8708.99.90"
-                value={hsCode}
-                onChange={(e) => setHsCode(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-slate-400 font-semibold">Valor FOB ($)</label>
-                <input
-                  type="number"
-                  placeholder="380"
-                  value={fob}
-                  onChange={(e) => setFob(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 font-semibold">Volumen (M3)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.38"
-                  value={cbm}
-                  onChange={(e) => setCbm(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400 font-semibold">Peso (Kg)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="50"
-                  value={pesoKg}
-                  onChange={(e) => setPesoKg(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
-            {/* Impuestos editables */}
-            {!esAllIn && (
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Alícuotas e Impuestos (%)
-                  </span>
-                  <span className="text-[10px] text-emerald-400 font-semibold">
-                    {hsCode ? '✓ Actualizado' : 'Valores por defecto'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div>
-                    <span className="text-slate-400">DDI</span>
-                    <input
-                      type="number"
-                      value={ddiPorc}
-                      onChange={(e) => setDdiPorc(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded p-1 font-mono text-emerald-400"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-slate-400">T. Estad.</span>
-                    <input
-                      type="number"
-                      value={tasaEstPorc}
-                      onChange={(e) => setTasaEstPorc(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded p-1 font-mono text-emerald-400"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-slate-400">IVA</span>
-                    <input
-                      type="number"
-                      value={ivaPorc}
-                      onChange={(e) => setIvaPorc(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded p-1 font-mono text-emerald-400"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-slate-400">IVA Adic.</span>
-                    <input
-                      type="number"
-                      value={ivaAddPorc}
-                      onChange={(e) => setIvaAddPorc(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded p-1 font-mono text-emerald-400"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Ganancias</span>
-                    <input
-                      type="number"
-                      value={gananciaPorc}
-                      onChange={(e) => setGananciaPorc(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded p-1 font-mono text-emerald-400"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-slate-400">IIBB</span>
-                    <input
-                      type="number"
-                      value={iibbPorc}
-                      onChange={(e) => setIibbPorc(parseFloat(e.target.value) || 0)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded p-1 font-mono text-emerald-400"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+        <div style={styles.formGrid}>
+          <div>
+            <label style={styles.label}>Cliente / Razón Social:</label>
+            <input style={styles.input} type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ej: Transportes SRL" />
           </div>
-
-          {/* Liquidación */}
-          <div className="md:col-span-7 bg-slate-900 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-4">
-            <div>
-              <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider border-b border-slate-800 pb-2 mb-3">
-                2. Liquidación y Cuadro Tributario
-              </h2>
-
-              <div className="space-y-2 text-sm font-mono">
-                <div className="flex justify-between py-1 border-b border-slate-800/60">
-                  <span className="text-slate-400">Valor FOB Declarado:</span>
-                  <span>USD {valorFob.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-800/60">
-                  <span className="text-slate-400">Flete Internacional:</span>
-                  <span>USD {flete.toFixed(2)}</span>
-                </div>
-
-                {!esAllIn && (
-                  <>
-                    <div className="flex justify-between py-1 border-b border-slate-800/60">
-                      <span className="text-slate-400">Seguro ({seguroPorc}%):</span>
-                      <span>USD {seguro.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between py-1 bg-slate-800/40 px-2 rounded font-semibold text-emerald-300">
-                      <span>Valor de Aduana (CIF):</span>
-                      <span>USD {valorAduanaCIF.toFixed(2)}</span>
-                    </div>
-
-                    <div className="pt-2 text-xs text-slate-400 font-sans font-semibold uppercase">Aranceles y Tributos</div>
-                    <div className="flex justify-between text-xs py-0.5 text-slate-300">
-                      <span>Derecho de Importación ({ddiPorc}%):</span>
-                      <span className="text-emerald-400">USD {ddiUsd.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs py-0.5 text-slate-300">
-                      <span>Tasa de Estadística ({tasaEstPorc}%):</span>
-                      <span className="text-emerald-400">USD {tasaEstPorc > 0 ? tasaEstUsd.toFixed(2) : '0.00 (Exenta)'}</span>
-                    </div>
-                    <div className="flex justify-between text-xs py-0.5 text-slate-300">
-                      <span>IVA ({ivaPorc}%):</span>
-                      <span className="text-emerald-400">USD {ivaUsd.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs py-0.5 text-slate-300">
-                      <span>IVA Adicional ({ivaAddPorc}%):</span>
-                      <span className="text-emerald-400">USD {ivaAddUsd.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs py-0.5 text-slate-300">
-                      <span>Ganancias ({gananciaPorc}%):</span>
-                      <span className="text-emerald-400">USD {gananciaUsd.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-xs py-0.5 text-slate-300">
-                      <span>IIBB ({iibbPorc}%):</span>
-                      <span className="text-emerald-400">USD {iibbUsd.toFixed(2)}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Totales y Acciones */}
-            <div className="space-y-3 pt-4 border-t border-slate-800">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-amber-950/40 border border-amber-800/60 p-3 rounded-xl">
-                  <span className="text-xs font-semibold text-amber-400 uppercase">Gastos Logísticos</span>
-                  <p className="text-xl font-bold text-amber-200">USD {gastosLogisticos.toFixed(2)}</p>
-                </div>
-                <div className="bg-emerald-950/40 border border-emerald-800/60 p-3 rounded-xl">
-                  <span className="text-xs font-semibold text-emerald-400 uppercase">Inversión Total</span>
-                  <p className="text-2xl font-bold text-emerald-300">USD {inversionTotal.toFixed(2)}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                <input
-                  type="tel"
-                  placeholder="Teléfono cliente (Ej: 549351...)"
-                  value={telefono}
-                  onChange={(e) => setTelefono(e.target.value)}
-                  className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs flex-1 outline-none"
-                />
-                <button
-                  onClick={enviarWhatsApp}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-md"
-                >
-                  Enviar WhatsApp →
-                </button>
-                <button
-                  onClick={copiarAlPortapapeles}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2.5 rounded-xl text-xs border border-slate-700"
-                >
-                  {copiado ? '✓ Copiado' : 'Copiar Texto'}
-                </button>
-              </div>
-            </div>
+          <div>
+            <label style={styles.label}>Producto / Descripción:</label>
+            <input style={styles.input} type="text" value={productDesc} onChange={(e) => setProductDesc(e.target.value)} placeholder="Ej: Repuestos de autos" />
           </div>
+          <div>
+            <label style={styles.label}>Posición Arancelaria (NCM):</label>
+            <input style={styles.input} type="text" value={hscode} onChange={(e) => setHscode(e.target.value)} placeholder="Ej: 8708.99.90" />
+          </div>
+          <div>
+            <label style={styles.label}>Valor FOB Total (USD):</label>
+            <input style={styles.input} type="number" value={fobValue} onChange={(e) => setFobValue(Number(e.target.value))} />
+          </div>
+          <div>
+            <label style={styles.label}>Peso Real (Kg):</label>
+            <input style={styles.input} type="number" value={weightKg} onChange={(e) => setWeightKg(Number(e.target.value))} />
+          </div>
+          <div>
+            <label style={styles.label}>Volumen ($m^3$ / CBM):</label>
+            <input style={styles.input} type="number" step="0.01" value={cbm} onChange={(e) => setCbm(Number(e.target.value))} />
+          </div>
+        </div>
+
+        {/* MODALIDAD */}
+        <div style={{ marginTop: '16px' }}>
+          <label style={styles.label}>Seleccionar Modalidad de Envío:</label>
+          <div style={styles.modeGrid}>
+            <button type="button" style={shippingMode === 'maritimo_compartido' ? styles.modeBtnActive : styles.modeBtn} onClick={() => handleModeChange('maritimo_compartido')}>
+              🚢 Compartido Marítimo
+              <span style={styles.subtext}>8.5 USD / Peso Vol.</span>
+            </button>
+            <button type="button" style={shippingMode === 'maritimo_cbm' ? styles.modeBtnActive : styles.modeBtn} onClick={() => handleModeChange('maritimo_cbm')}>
+              📦 Marítimo ($m^3$)
+              <span style={styles.subtext}>300 - 400 USD / CBM</span>
+            </button>
+            <button type="button" style={shippingMode === 'courier_aereo' ? styles.modeBtnActive : styles.modeBtn} onClick={() => handleModeChange('courier_aereo')}>
+              ✈️ Courier Aéreo
+              <span style={styles.subtext}>15 - 18 USD / Kg</span>
+            </button>
+            <button type="button" style={shippingMode === 'all_in_aereo' ? styles.modeBtnActive : styles.modeBtn} onClick={() => handleModeChange('all_in_aereo')}>
+              🚀 All In Aéreo
+              <span style={styles.subtext}>45 - 50 USD / Kg</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ALÍCUOTAS Y TARIFA */}
+        <div style={{ ...styles.formGrid, marginTop: '16px' }}>
+          <div>
+            <label style={styles.label}>Tarifa USD Unidad:</label>
+            <input style={styles.input} type="number" step="0.1" value={unitFreightRate} onChange={(e) => setUnitFreightRate(Number(e.target.value))} />
+          </div>
+          {!isAllIn && (
+            <>
+              <div>
+                <label style={styles.label}>% DDI:</label>
+                <input style={styles.input} type="number" value={ddiRate} onChange={(e) => setDdiRate(Number(e.target.value))} />
+              </div>
+              <div>
+                <label style={styles.label}>% Tasa Estadística:</label>
+                <input style={styles.input} type="number" value={statRate} onChange={(e) => setStatRate(Number(e.target.value))} />
+              </div>
+              <div>
+                <label style={styles.label}>Gastos Locales (USD):</label>
+                <input style={styles.input} type="number" value={localExpenses} onChange={(e) => setLocalExpenses(Number(e.target.value))} />
+              </div>
+            </>
+          )}
+          <div>
+            <label style={styles.label}>Gestión / Fee (USD):</label>
+            <input style={styles.input} type="number" value={serviceFee} onChange={(e) => setServiceFee(Number(e.target.value))} />
+          </div>
+        </div>
+
+        {/* ACCIONES */}
+        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+          <button style={styles.printBtn} onClick={() => window.print()}>
+            🖨️ Imprimir / Guardar PDF
+          </button>
+          <button style={styles.waBtn} onClick={enviarWhatsApp}>
+            💬 Enviar por WhatsApp
+          </button>
+          <button style={styles.copyBtn} onClick={copiarAlPortapapeles}>
+            {copiado ? '✅ Copiado' : '📋 Copiar Resumen'}
+          </button>
         </div>
       </div>
-    </main>
+
+      {/* PLANILLA EJECUTIVA IMPRIMIBLE */}
+      <div style={styles.quoteCard} className="print-sheet">
+        <div style={styles.quoteHeader}>
+          <img src="/logo.png" alt="De China Al Mundo" style={{ maxHeight: '55px', objectFit: 'contain' }} />
+          <div style={{ textAlign: 'right' }}>
+            <h1 style={{ margin: 0, fontSize: '18px', color: '#881337', fontWeight: '900' }}>COTIZACIÓN DE IMPORTACIÓN</h1>
+            <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
+              Fecha: {new Date().toLocaleDateString('es-AR')} | Ref: DCAM-{Math.floor(1000 + Math.random() * 9000)}
+            </p>
+          </div>
+        </div>
+
+        <hr style={styles.hrDivider} />
+
+        <div style={styles.twoColGrid}>
+          <div>
+            <h3 style={styles.sectionHeading}>DATOS DEL CLIENTE</h3>
+            <p style={styles.dataRow}><strong>Cliente:</strong> {clientName || 'Consumidor Final'}</p>
+            <p style={styles.dataRow}><strong>Producto:</strong> {productDesc || 'Mercadería General'}</p>
+            <p style={styles.dataRow}><strong>Posición:</strong> {hscode || 'A clasificar'}</p>
+          </div>
+          <div>
+            <h3 style={styles.sectionHeading}>DETALLE LOGÍSTICO</h3>
+            <p style={styles.dataRow}>
+              <strong>Modalidad:</strong> {
+                shippingMode === 'maritimo_compartido' ? 'Carga Compartida Marítimo' :
+                shippingMode === 'maritimo_cbm' ? 'Carga Marítima por CBM' :
+                shippingMode === 'courier_aereo' ? 'Courier Aéreo Express' : 'All In Aéreo'
+              }
+            </p>
+            <p style={styles.dataRow}><strong>Peso / Vol.:</strong> {weightKg} kg | {cbm} $m^3$</p>
+            <p style={styles.dataRow}><strong>Peso Facturable:</strong> {chargeableWeight} kg</p>
+          </div>
+        </div>
+
+        <table style={styles.table}>
+          <thead>
+            <tr style={styles.thRow}>
+              <th style={styles.th}>CONCEPTO</th>
+              <th style={styles.thCenter}>BASE / ALÍCUOTA</th>
+              <th style={styles.thRight}>TOTAL (USD)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={styles.td}>Valor FOB Mercadería</td>
+              <td style={styles.tdCenter}>-</td>
+              <td style={styles.tdRight}>${fobValue.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style={styles.td}>Flete Internacional</td>
+              <td style={styles.tdCenter}>Tarifa: ${unitFreightRate}</td>
+              <td style={styles.tdRight}>${internationalFreight.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style={styles.td}>Seguro Internacional Estimado</td>
+              <td style={styles.tdCenter}>1.00%</td>
+              <td style={styles.tdRight}>${insurance.toFixed(2)}</td>
+            </tr>
+            <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
+              <td style={styles.td}>VALOR CIF ADUANA</td>
+              <td style={styles.tdCenter}>FOB + Flete + Seguro</td>
+              <td style={styles.tdRight}>${cifValue.toFixed(2)}</td>
+            </tr>
+
+            {!isAllIn ? (
+              <>
+                <tr>
+                  <td style={styles.td}>Derechos de Importación (DDI)</td>
+                  <td style={styles.tdCenter}>{ddiRate}%</td>
+                  <td style={styles.tdRight}>${ddiAmount.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style={styles.td}>Tasa de Estadística</td>
+                  <td style={styles.tdCenter}>{statRate}%</td>
+                  <td style={styles.tdRight}>${statAmount.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style={styles.td}>IVA General</td>
+                  <td style={styles.tdCenter}>{ivaRate}%</td>
+                  <td style={styles.tdRight}>${ivaAmount.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style={styles.td}>IVA Adicional</td>
+                  <td style={styles.tdCenter}>{ivaAdicRate}%</td>
+                  <td style={styles.tdRight}>${ivaAdicAmount.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style={styles.td}>Percepción Ganancias</td>
+                  <td style={styles.tdCenter}>{gananciasRate}%</td>
+                  <td style={styles.tdRight}>${gananciasAmount.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style={styles.td}>Percepción IIBB</td>
+                  <td style={styles.tdCenter}>{iibbRate}%</td>
+                  <td style={styles.tdRight}>${iibbAmount.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style={styles.td}>Gastos Locales / Puerto / Despacho</td>
+                  <td style={styles.tdCenter}>Fijo estimado</td>
+                  <td style={styles.tdRight}>${localExpenses.toFixed(2)}</td>
+                </tr>
+              </>
+            ) : (
+              <tr>
+                <td style={styles.td}>Servicio Integral Aduanero / Impuestos</td>
+                <td style={styles.tdCenter}>Incluido en modalidad All In</td>
+                <td style={styles.tdRight}>$0.00</td>
+              </tr>
+            )}
+
+            <tr>
+              <td style={styles.td}>Gestión Integral & Coordinación DCAM</td>
+              <td style={styles.tdCenter}>Honorarios</td>
+              <td style={styles.tdRight}>${serviceFee.toFixed(2)}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr style={styles.tfootRow}>
+              <td colSpan={2} style={styles.tdTotalLabel}>TOTAL ESTIMADO DE LA OPERACIÓN (USD):</td>
+              <td style={styles.tdTotalValue}>${grandTotal.toFixed(2)}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div style={styles.notesBox}>
+          <strong>Términos & Condiciones:</strong>
+          <ul style={{ margin: '4px 0 0 0', paddingLeft: '18px', fontSize: '11px', color: '#475569' }}>
+            <li>Cotización válida por 7 días hábiles sujeta a variación de fletes.</li>
+            <li>Valores tributarios definitivos sujetos a oficialización ante DGA.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }
+
+const styles = {
+  container: { minHeight: '100vh', background: '#0f172a', padding: '24px', fontFamily: 'sans-serif' },
+  panel: { background: '#1e293b', borderRadius: '12px', padding: '24px', maxWidth: '900px', margin: '0 auto 30px auto', border: '1px solid #334155' },
+  formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' },
+  label: { display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '4px' },
+  input: { width: '100%', boxSizing: 'border-box', padding: '8px 10px', background: '#0f172a', border: '1px solid #475569', borderRadius: '6px', color: '#fff', fontSize: '13px' },
+  modeGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' },
+  modeBtn: { background: '#0f172a', border: '1px solid #475569', borderRadius: '8px', padding: '10px', color: '#cbd5e1', cursor: 'pointer', textAlign: 'left' },
+  modeBtnActive: { background: '#881337', border: '1px solid #f43f5e', borderRadius: '8px', padding: '10px', color: '#fff', cursor: 'pointer', textAlign: 'left' },
+  subtext: { display: 'block', fontSize: '10px', color: '#fbbf24', marginTop: '2px' },
+  printBtn: { flex: 1, background: '#b91c1c', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
+  waBtn: { flex: 1, background: '#10b981', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
+  copyBtn: { flex: 1, background: '#334155', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
+  quoteCard: { background: '#ffffff', borderRadius: '12px', padding: '30px', maxWidth: '850px', margin: '0 auto', color: '#1e293b' },
+  quoteHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  hrDivider: { border: 'none', borderTop: '2px solid #881337', margin: '14px 0' },
+  twoColGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' },
+  sectionHeading: { fontSize: '11px', fontWeight: '900', color: '#881337', borderBottom: '1px solid #e2e8f0', paddingBottom: '3px', marginBottom: '6px' },
+  dataRow: { fontSize: '11px', margin: '2px 0', color: '#334155' },
+  table: { width: '100%', borderCollapse: 'collapse', marginBottom: '16px' },
+  thRow: { background: '#881337', color: '#fff' },
+  th: { padding: '6px 8px', fontSize: '11px', textAlign: 'left' },
+  thCenter: { padding: '6px 8px', fontSize: '11px', textAlign: 'center' },
+  thRight: { padding: '6px 8px', fontSize: '11px', textAlign: 'right' },
+  td: { padding: '6px 8px', fontSize: '11px', borderBottom: '1px solid #f1f5f9' },
+  tdCenter: { padding: '6px 8px', fontSize: '11px', textAlign: 'center', borderBottom: '1px solid #f1f5f9', color: '#64748b' },
+  tdRight: { padding: '6px 8px', fontSize: '11px', textAlign: 'right', borderBottom: '1px solid #f1f5f9' },
+  tfootRow: { background: '#f8fafc', borderTop: '2px solid #881337' },
+  tdTotalLabel: { padding: '8px', fontSize: '12px', fontWeight: 'bold', textAlign: 'right', color: '#881337' },
+  tdTotalValue: { padding: '8px', fontSize: '15px', fontWeight: '900', textAlign: 'right', color: '#881337' },
+  notesBox: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '10px 14px' }
+};
