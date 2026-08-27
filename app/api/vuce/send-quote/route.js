@@ -11,29 +11,36 @@ export async function POST(request) {
       );
     }
 
-    // URL de tu servidor Baileys / WhatsApp local o en producción
-    const SENDER_URL = process.env.WHATSAPP_API_URL || 'http://localhost:3001/api/send';
+    // Servidor de Baileys alojado en Render
+    const SERVER_URL = 'https://whatsapp-server-qr.onrender.com/send-message';
 
-    const response = await fetch(SENDER_URL, {
+    const response = await fetch(SERVER_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, message })
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        number: phone,   // o phone según cómo lo reciba tu server
+        phone: phone,
+        message: message,
+        text: message
+      })
     });
 
     const data = await response.json();
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.error || 'No se pudo enviar el WhatsApp desde el bot.' },
+        { error: data.error || 'Error al despachar desde el bot de WhatsApp.' },
         { status: response.status }
       );
     }
 
     return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error('Error enviando cotización por WhatsApp:', error);
+    console.error('Error enviando cotización:', error);
     return NextResponse.json(
-      { error: 'Error interno o servidor de WhatsApp desconectado.' },
+      { error: 'No se pudo conectar con el servidor de WhatsApp en Render.' },
       { status: 500 }
     );
   }
