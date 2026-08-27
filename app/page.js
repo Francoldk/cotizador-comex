@@ -45,6 +45,7 @@ export default function Cotizador() {
   const [serviceFee, setServiceFee] = useState(35);
 
   const [copiado, setCopiado] = useState(false);
+  const [enviando, setEnviando] = useState(false);
 
   // Cambiar tarifas según modalidad
   const handleModeChange = (mode) => {
@@ -135,17 +136,37 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
     setTimeout(() => setCopiado(false), 2500);
   };
 
-  // Envío directo a WhatsApp
-  const enviarWhatsAppDirecto = () => {
+  // Envío directo al bot por API (NO abre WhatsApp Web)
+  const enviarWhatsAppDirecto = async () => {
     if (!clientPhone) {
       alert('Por favor ingresá el número de WhatsApp del cliente (ej: 549351...)');
       return;
     }
 
-    const cleanNumber = clientPhone.replace(/\D/g, '');
-    const mensaje = encodeURIComponent(generarTextoResumen());
-    
-    window.open(`https://api.whatsapp.com/send?phone=${cleanNumber}&text=${mensaje}`, '_blank');
+    setEnviando(true);
+    try {
+      const res = await fetch('/api/send-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: clientPhone.replace(/\D/g, ''),
+          message: generarTextoResumen()
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        alert('✅ ¡Cotización enviada con éxito desde el bot!');
+      } else {
+        alert('❌ Error al enviar: ' + (data.error || 'Verificar servidor de WhatsApp'));
+      }
+    } catch (error) {
+      console.error(error);
+      alert('❌ Error de conexión al despachar el mensaje.');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -328,8 +349,12 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           <button style={styles.printBtn} onClick={() => window.print()}>
             🖨️ Imprimir / Guardar PDF
           </button>
-          <button style={styles.waBtn} onClick={enviarWhatsAppDirecto}>
-            💬 Enviar por WhatsApp
+          <button 
+            style={{ ...styles.waBtn, opacity: enviando ? 0.7 : 1 }} 
+            onClick={enviarWhatsAppDirecto}
+            disabled={enviando}
+          >
+            {enviando ? '⏳ Enviando...' : '🚀 Enviar por WhatsApp'}
           </button>
           <button style={styles.copyBtn} onClick={copiarAlPortapapeles}>
             {copiado ? '✅ Copiado' : '📋 Copiar Resumen'}
