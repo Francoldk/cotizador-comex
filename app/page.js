@@ -5,6 +5,7 @@ import { useState } from 'react';
 export default function Cotizador() {
   // Datos del Cliente y Mercadería
   const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
   const [productDesc, setProductDesc] = useState('');
   const [hscode, setHscode] = useState('');
   const [incoterm, setIncoterm] = useState('FOB');
@@ -41,9 +42,10 @@ export default function Cotizador() {
   const [enableLocalExpenses, setEnableLocalExpenses] = useState(true);
   const [localExpenses, setLocalExpenses] = useState(250);
   const [enableInsurance, setEnableInsurance] = useState(true);
-  const [serviceFee, setServiceFee] = useState(35); // Base solicitada: 35 USD
+  const [serviceFee, setServiceFee] = useState(35);
 
   const [copiado, setCopiado] = useState(false);
+  const [enviando, setEnviando] = useState(false);
 
   // Cambiar tarifas según modalidad
   const handleModeChange = (mode) => {
@@ -70,7 +72,7 @@ export default function Cotizador() {
 
   let internationalFreight = 0;
   if (incoterm === 'CIF' || incoterm === 'DDP') {
-    internationalFreight = 0; // Ya incluido en el término
+    internationalFreight = 0;
   } else if (shippingMode === 'maritimo_compartido') {
     internationalFreight = chargeableWeight * unitFreightRate;
   } else if (shippingMode === 'maritimo_cbm') {
@@ -84,7 +86,7 @@ export default function Cotizador() {
     ? Number(((goodsValue + internationalFreight) * 0.01).toFixed(2))
     : 0;
 
-  // Valor CIF Aduanero Base
+  // Valor en Aduana Base
   const cifValue = incoterm === 'CIF' || incoterm === 'DDP'
     ? goodsValue
     : goodsValue + internationalFreight + insurance;
@@ -134,9 +136,37 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
     setTimeout(() => setCopiado(false), 2500);
   };
 
-  const enviarWhatsApp = () => {
-    const texto = encodeURIComponent(generarTextoResumen());
-    window.open(`https://wa.me/?text=${texto}`, '_blank');
+  // Disparo directo al servidor del Bot
+  const enviarWhatsAppDirecto = async () => {
+    if (!clientPhone) {
+      alert('Por favor ingresá el número de teléfono del cliente (ej: 549351...)');
+      return;
+    }
+
+    setEnviando(true);
+    try {
+      // Le pega a la ruta interna que conecta con Baileys
+      const res = await fetch('/api/send-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: clientPhone.replace(/\D/g, ''),
+          message: generarTextoResumen()
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert('✅ Cotización enviada exitosamente por WhatsApp');
+      } else {
+        alert('❌ Error al enviar: ' + (data.error || 'Verificar servidor de WhatsApp'));
+      }
+    } catch (error) {
+      console.error(error);
+      alert('❌ No se pudo conectar con el servidor de WhatsApp.');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -165,11 +195,15 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           </div>
         </div>
 
-        {/* DATOS PRINCIPALES E INCOTERM */}
+        {/* DATOS PRINCIPALES */}
         <div style={styles.formGrid}>
           <div>
             <label style={styles.label}>Cliente / Razón Social:</label>
             <input style={styles.input} type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ej: Transportes SRL" />
+          </div>
+          <div>
+            <label style={styles.label}>WhatsApp Cliente (con código de país):</label>
+            <input style={styles.input} type="text" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Ej: 5493512345678" />
           </div>
           <div>
             <label style={styles.label}>Producto / Descripción:</label>
@@ -185,7 +219,7 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <option value="EXW">EXW (En fábrica)</option>
               <option value="FOB">FOB (Puesto en puerto)</option>
               <option value="CIF">CIF (Costo, Flete y Seguro)</option>
-              <option value="DDP">DDP (Entregado con impuestos pagos)</option>
+              <option value="DDP">DDP (Entregado con impuestos)</option>
             </select>
           </div>
           <div>
@@ -225,14 +259,13 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           </div>
         </div>
 
-        {/* CONFIGURADOR DINÁMICO DE IMPUESTOS Y GASTOS */}
+        {/* CONFIGURADOR DINÁMICO */}
         <div style={{ marginTop: '18px', background: '#0f172a', padding: '14px', borderRadius: '8px', border: '1px solid #334155' }}>
           <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#f1f5f9', display: 'block', marginBottom: '10px' }}>
-            ⚙️ Ajuste de Impuestos, Gastos y Honorarios (Marcar para activar/desactivar):
+            ⚙️ Ajuste de Impuestos, Gastos y Honorarios:
           </span>
 
           <div style={styles.taxGrid}>
-            {/* DDI */}
             <div style={styles.taxItem}>
               <label style={styles.checkboxLabel}>
                 <input type="checkbox" checked={enableDdi} onChange={(e) => setEnableDdi(e.target.checked)} />
@@ -241,7 +274,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <input style={styles.inputSmall} type="number" disabled={!enableDdi} value={ddiRate} onChange={(e) => setDdiRate(Number(e.target.value))} />
             </div>
 
-            {/* Estadística */}
             <div style={styles.taxItem}>
               <label style={styles.checkboxLabel}>
                 <input type="checkbox" checked={enableStat} onChange={(e) => setEnableStat(e.target.checked)} />
@@ -250,7 +282,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <input style={styles.inputSmall} type="number" disabled={!enableStat} value={statRate} onChange={(e) => setStatRate(Number(e.target.value))} />
             </div>
 
-            {/* IVA */}
             <div style={styles.taxItem}>
               <label style={styles.checkboxLabel}>
                 <input type="checkbox" checked={enableIva} onChange={(e) => setEnableIva(e.target.checked)} />
@@ -259,7 +290,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <input style={styles.inputSmall} type="number" disabled={!enableIva} value={ivaRate} onChange={(e) => setIvaRate(Number(e.target.value))} />
             </div>
 
-            {/* IVA Adicional */}
             <div style={styles.taxItem}>
               <label style={styles.checkboxLabel}>
                 <input type="checkbox" checked={enableIvaAdic} onChange={(e) => setEnableIvaAdic(e.target.checked)} />
@@ -268,7 +298,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <input style={styles.inputSmall} type="number" disabled={!enableIvaAdic} value={ivaAdicRate} onChange={(e) => setIvaAdicRate(Number(e.target.value))} />
             </div>
 
-            {/* Ganancias */}
             <div style={styles.taxItem}>
               <label style={styles.checkboxLabel}>
                 <input type="checkbox" checked={enableGanancias} onChange={(e) => setEnableGanancias(e.target.checked)} />
@@ -277,7 +306,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <input style={styles.inputSmall} type="number" disabled={!enableGanancias} value={gananciasRate} onChange={(e) => setGananciasRate(Number(e.target.value))} />
             </div>
 
-            {/* IIBB */}
             <div style={styles.taxItem}>
               <label style={styles.checkboxLabel}>
                 <input type="checkbox" checked={enableIibb} onChange={(e) => setEnableIibb(e.target.checked)} />
@@ -286,7 +314,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <input style={styles.inputSmall} type="number" disabled={!enableIibb} value={iibbRate} onChange={(e) => setIibbRate(Number(e.target.value))} />
             </div>
 
-            {/* Gastos Locales */}
             <div style={styles.taxItem}>
               <label style={styles.checkboxLabel}>
                 <input type="checkbox" checked={enableLocalExpenses} onChange={(e) => setEnableLocalExpenses(e.target.checked)} />
@@ -295,7 +322,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <input style={styles.inputSmall} type="number" disabled={!enableLocalExpenses} value={localExpenses} onChange={(e) => setLocalExpenses(Number(e.target.value))} />
             </div>
 
-            {/* Seguro */}
             <div style={styles.taxItem}>
               <label style={styles.checkboxLabel}>
                 <input type="checkbox" checked={enableInsurance} onChange={(e) => setEnableInsurance(e.target.checked)} />
@@ -304,7 +330,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <span style={{ fontSize: '11px', color: '#94a3b8' }}>{enableInsurance ? `$${insurance}` : 'No'}</span>
             </div>
 
-            {/* Honorarios / Gestión */}
             <div style={styles.taxItem}>
               <label style={{ ...styles.checkboxLabel, color: '#fbbf24' }}>
                 Honorarios (USD):
@@ -312,7 +337,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <input style={{ ...styles.inputSmall, borderColor: '#fbbf24' }} type="number" value={serviceFee} onChange={(e) => setServiceFee(Number(e.target.value))} />
             </div>
 
-            {/* Tarifa Flete Unidad */}
             <div style={styles.taxItem}>
               <label style={styles.checkboxLabel}>Tarifa Flete (USD):</label>
               <input style={styles.inputSmall} type="number" step="0.1" value={unitFreightRate} onChange={(e) => setUnitFreightRate(Number(e.target.value))} />
@@ -325,16 +349,20 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           <button style={styles.printBtn} onClick={() => window.print()}>
             🖨️ Imprimir / Guardar PDF
           </button>
-          <button style={styles.waBtn} onClick={enviarWhatsApp}>
-            💬 Enviar por WhatsApp
+          <button 
+            style={{ ...styles.waBtn, opacity: enviando ? 0.7 : 1 }} 
+            onClick={enviarWhatsAppDirecto}
+            disabled={enviando}
+          >
+            {enviando ? '⏳ Enviando...' : '🚀 Enviar Directo por WhatsApp'}
           </button>
           <button style={styles.copyBtn} onClick={copiarAlPortapapeles}>
-            {copiado ? '✅ Resumen Copiado' : '📋 Copiar Resumen'}
+            {copiado ? '✅ Copiado' : '📋 Copiar Resumen'}
           </button>
         </div>
       </div>
 
-      {/* PLANILLA FORMAL EJECUTIVA IMPRIMIBLE */}
+      {/* PLANILLA FORMAL EJECUTIVA */}
       <div style={styles.quoteCard} className="print-sheet">
         <div style={styles.quoteHeader}>
           <img src="/logo.png" alt="De China Al Mundo" style={{ maxHeight: '55px', objectFit: 'contain' }} />
@@ -352,6 +380,7 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           <div>
             <h3 style={styles.sectionHeading}>DATOS DEL CLIENTE</h3>
             <p style={styles.dataRow}><strong>Cliente:</strong> {clientName || 'Consumidor Final'}</p>
+            {clientPhone && <p style={styles.dataRow}><strong>Contacto:</strong> +{clientPhone}</p>}
             <p style={styles.dataRow}><strong>Producto:</strong> {productDesc || 'Mercadería General'}</p>
             <p style={styles.dataRow}><strong>Posición:</strong> {hscode || 'A clasificar'}</p>
             <p style={styles.dataRow}><strong>Término de Compra:</strong> {incoterm}</p>
@@ -402,8 +431,10 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
             )}
 
             <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-              <td style={styles.td}>VALOR CIF ADUANA BASE</td>
-              <td style={styles.tdCenter}>Base imponible tributaria</td>
+              <td style={styles.td}>VALOR EN ADUANA (BASE TRIBUTARIA)</td>
+              <td style={styles.tdCenter}>
+                {incoterm === 'CIF' ? 'Valor CIF' : `${incoterm} + Flete + Seguro`}
+              </td>
               <td style={styles.tdRight}>${cifValue.toFixed(2)}</td>
             </tr>
 
@@ -509,7 +540,7 @@ const styles = {
   modeBtnActive: { background: '#881337', border: '1px solid #f43f5e', borderRadius: '8px', padding: '10px', color: '#fff', cursor: 'pointer', textAlign: 'left' },
   subtext: { display: 'block', fontSize: '10px', color: '#fbbf24', marginTop: '2px' },
   printBtn: { flex: 1, background: '#b91c1c', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
-  waBtn: { flex: 1, background: '#10b981', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
+  waBtn: { flex: 1.4, background: '#10b981', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
   copyBtn: { flex: 1, background: '#334155', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' },
   quoteCard: { background: '#ffffff', borderRadius: '12px', padding: '30px', maxWidth: '850px', margin: '0 auto', color: '#1e293b' },
   quoteHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
