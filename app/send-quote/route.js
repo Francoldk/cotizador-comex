@@ -6,12 +6,12 @@ export async function POST(request) {
 
     if (!phone || !message) {
       return NextResponse.json(
-        { error: 'Faltan datos (número o mensaje).' },
+        { error: 'Faltan datos requeridos (número de teléfono o texto).' },
         { status: 400 }
       );
     }
 
-    // Endpoint exacto de tu servidor Baileys en Render
+    // Servidor de Baileys en Render
     const SERVER_URL = 'https://whatsapp-server-qr.onrender.com/send-message';
 
     const response = await fetch(SERVER_URL, {
@@ -31,7 +31,7 @@ export async function POST(request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.error || data.message || 'Error al despachar desde el bot' },
+        { error: data.error || data.message || 'Error en el servidor de WhatsApp en Render' },
         { status: response.status }
       );
     }
@@ -40,7 +40,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error enviando cotización:', error);
     return NextResponse.json(
-      { error: `Fallo de conexión: ${error.message}` },
+      { error: `Fallo de conexión con Render: ${error.message}` },
       { status: 500 }
     );
   }
