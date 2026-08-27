@@ -45,7 +45,6 @@ export default function Cotizador() {
   const [serviceFee, setServiceFee] = useState(35);
 
   const [copiado, setCopiado] = useState(false);
-  const [enviando, setEnviando] = useState(false);
 
   // Cambiar tarifas según modalidad
   const handleModeChange = (mode) => {
@@ -136,37 +135,17 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
     setTimeout(() => setCopiado(false), 2500);
   };
 
-  // Disparo directo al servidor del Bot
-  const enviarWhatsAppDirecto = async () => {
+  // Envío directo a WhatsApp
+  const enviarWhatsAppDirecto = () => {
     if (!clientPhone) {
-      alert('Por favor ingresá el número de teléfono del cliente (ej: 549351...)');
+      alert('Por favor ingresá el número de WhatsApp del cliente (ej: 549351...)');
       return;
     }
 
-    setEnviando(true);
-    try {
-      // Le pega a la ruta interna que conecta con Baileys
-      const res = await fetch('/api/send-quote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: clientPhone.replace(/\D/g, ''),
-          message: generarTextoResumen()
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        alert('✅ Cotización enviada exitosamente por WhatsApp');
-      } else {
-        alert('❌ Error al enviar: ' + (data.error || 'Verificar servidor de WhatsApp'));
-      }
-    } catch (error) {
-      console.error(error);
-      alert('❌ No se pudo conectar con el servidor de WhatsApp.');
-    } finally {
-      setEnviando(false);
-    }
+    const cleanNumber = clientPhone.replace(/\D/g, '');
+    const mensaje = encodeURIComponent(generarTextoResumen());
+    
+    window.open(`https://api.whatsapp.com/send?phone=${cleanNumber}&text=${mensaje}`, '_blank');
   };
 
   return (
@@ -231,7 +210,7 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
             <input style={styles.input} type="number" value={weightKg} onChange={(e) => setWeightKg(Number(e.target.value))} />
           </div>
           <div>
-            <label style={styles.label}>Volumen ($m^3$ / CBM):</label>
+            <label style={styles.label}>Volumen (m³ / CBM):</label>
             <input style={styles.input} type="number" step="0.01" value={cbm} onChange={(e) => setCbm(Number(e.target.value))} />
           </div>
         </div>
@@ -245,7 +224,7 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <span style={styles.subtext}>8.5 USD / Peso Vol.</span>
             </button>
             <button type="button" style={shippingMode === 'maritimo_cbm' ? styles.modeBtnActive : styles.modeBtn} onClick={() => handleModeChange('maritimo_cbm')}>
-              📦 Marítimo ($m^3$)
+              📦 Marítimo (m³)
               <span style={styles.subtext}>300 - 400 USD / CBM</span>
             </button>
             <button type="button" style={shippingMode === 'courier_aereo' ? styles.modeBtnActive : styles.modeBtn} onClick={() => handleModeChange('courier_aereo')}>
@@ -349,12 +328,8 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           <button style={styles.printBtn} onClick={() => window.print()}>
             🖨️ Imprimir / Guardar PDF
           </button>
-          <button 
-            style={{ ...styles.waBtn, opacity: enviando ? 0.7 : 1 }} 
-            onClick={enviarWhatsAppDirecto}
-            disabled={enviando}
-          >
-            {enviando ? '⏳ Enviando...' : '🚀 Enviar Directo por WhatsApp'}
+          <button style={styles.waBtn} onClick={enviarWhatsAppDirecto}>
+            💬 Enviar por WhatsApp
           </button>
           <button style={styles.copyBtn} onClick={copiarAlPortapapeles}>
             {copiado ? '✅ Copiado' : '📋 Copiar Resumen'}
@@ -394,7 +369,7 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
                 shippingMode === 'courier_aereo' ? 'Courier Aéreo Express' : 'All In Aéreo'
               }
             </p>
-            <p style={styles.dataRow}><strong>Peso / Vol.:</strong> {weightKg} kg | {cbm} $m^3$</p>
+            <p style={styles.dataRow}><strong>Peso / Vol.:</strong> {weightKg} kg | {cbm} m³</p>
             <p style={styles.dataRow}><strong>Peso Facturable:</strong> {chargeableWeight} kg</p>
           </div>
         </div>
