@@ -19,7 +19,7 @@ export default function Cotizador() {
   const [shippingMode, setShippingMode] = useState('maritimo_compartido');
   const [unitFreightRate, setUnitFreightRate] = useState(8.5);
 
-  // Toggle de Visualización de Mercadería
+  // Toggle de Visualización y Cómputo del Valor de Mercadería
   const [enableGoodsValue, setEnableGoodsValue] = useState(true);
 
   // Toggle y Alícuotas Impositivas
@@ -89,18 +89,23 @@ export default function Cotizador() {
     ? Number(((goodsValue + internationalFreight) * 0.01).toFixed(2))
     : 0;
 
-  // Valor en Aduana Base
-  const cifValue = incoterm === 'CIF' || incoterm === 'DDP'
+  // Base legal para liquidación en aduana
+  const legalCifValue = incoterm === 'CIF' || incoterm === 'DDP'
     ? goodsValue
     : goodsValue + internationalFreight + insurance;
 
+  // Base mostrada en la cotización según si se incluye la mercadería o no
+  const displayedBaseValue = enableGoodsValue
+    ? legalCifValue
+    : (internationalFreight + insurance);
+
   const isAllInOrDdp = shippingMode === 'all_in_aereo' || incoterm === 'DDP';
 
-  // Cascada Impositiva Dinámica
-  const ddiAmount = (!isAllInOrDdp && enableDdi) ? Number((cifValue * (ddiRate / 100)).toFixed(2)) : 0;
-  const statAmount = (!isAllInOrDdp && enableStat) ? Number((cifValue * (statRate / 100)).toFixed(2)) : 0;
+  // Cascada Impositiva Dinámica (calculada sobre base aduanera oficial)
+  const ddiAmount = (!isAllInOrDdp && enableDdi) ? Number((legalCifValue * (ddiRate / 100)).toFixed(2)) : 0;
+  const statAmount = (!isAllInOrDdp && enableStat) ? Number((legalCifValue * (statRate / 100)).toFixed(2)) : 0;
   
-  const taxBase = !isAllInOrDdp ? (cifValue + ddiAmount + statAmount) : 0;
+  const taxBase = !isAllInOrDdp ? (legalCifValue + ddiAmount + statAmount) : 0;
 
   const ivaAmount = (!isAllInOrDdp && enableIva) ? Number((taxBase * (ivaRate / 100)).toFixed(2)) : 0;
   const ivaAdicAmount = (!isAllInOrDdp && enableIvaAdic) ? Number((taxBase * (ivaAdicRate / 100)).toFixed(2)) : 0;
@@ -109,7 +114,9 @@ export default function Cotizador() {
 
   const totalTaxes = ddiAmount + statAmount + ivaAmount + ivaAdicAmount + gananciasAmount + iibbAmount;
   const activeLocalExpenses = (!isAllInOrDdp && enableLocalExpenses) ? localExpenses : 0;
-  const grandTotal = cifValue + totalTaxes + activeLocalExpenses + serviceFee;
+
+  // Total final: si se destilda mercadería, el total representa el servicio logístico + impuestos + gastos
+  const grandTotal = (enableGoodsValue ? goodsValue : 0) + internationalFreight + insurance + totalTaxes + activeLocalExpenses + serviceFee;
 
   // Formato para WhatsApp
   const generarTextoResumen = () => {
@@ -129,7 +136,7 @@ ${enableGoodsValue ? `💵 *Valor Mercadería (${incoterm}):* $${goodsValue.toFi
 ${enableInsurance ? `🛡️ *Seguro Estimado:* $${insurance.toFixed(2)} USD\n` : ''}🏛️ *Impuestos y Aduana:* $${totalTaxes.toFixed(2)} USD
 ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFixed(2)} USD\n` : ''}🤝 *Honorarios DCAM:* $${serviceFee.toFixed(2)} USD
 ----------------------------------------
-💰 *TOTAL ESTIMADO DE LA OPERACIÓN:* $${grandTotal.toFixed(2)} USD`;
+💰 *TOTAL ${enableGoodsValue ? 'ESTIMADO OPERACIÓN' : 'SERVICIO LOGÍSTICO & IMPUESTOS'}:* $${grandTotal.toFixed(2)} USD`;
   };
 
   const copiarAlPortapapeles = () => {
@@ -138,7 +145,6 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
     setTimeout(() => setCopiado(false), 2500);
   };
 
-  // Envío directo al bot por API (NO abre WhatsApp Web)
   const enviarWhatsAppDirecto = async () => {
     if (!clientPhone) {
       alert('Por favor ingresá el número de WhatsApp del cliente (ej: 549351...)');
@@ -443,11 +449,15 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
             )}
 
             <tr style={{ background: '#f8fafc', fontWeight: 'bold' }}>
-              <td style={styles.td}>VALOR EN ADUANA (BASE TRIBUTARIA)</td>
-              <td style={styles.tdCenter}>
-                {incoterm === 'CIF' ? 'Valor CIF' : `${incoterm} + Flete + Seguro`}
+              <td style={styles.td}>
+                {enableGoodsValue ? 'VALOR EN ADUANA (BASE TRIBUTARIA)' : 'SUBTOTAL FLETE & SEGURO'}
               </td>
-              <td style={styles.tdRight}>${cifValue.toFixed(2)}</td>
+              <td style={styles.tdCenter}>
+                {enableGoodsValue
+                  ? (incoterm === 'CIF' ? 'Valor CIF' : `${incoterm} + Flete + Seguro`)
+                  : 'Flete + Seguro'}
+              </td>
+              <td style={styles.tdRight}>${displayedBaseValue.toFixed(2)}</td>
             </tr>
 
             {!isAllInOrDdp ? (
@@ -518,7 +528,11 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           </tbody>
           <tfoot>
             <tr style={styles.tfootRow}>
-              <td colSpan={2} style={styles.tdTotalLabel}>TOTAL ESTIMADO DE LA OPERACIÓN (USD):</td>
+              <td colSpan={2} style={styles.tdTotalLabel}>
+                {enableGoodsValue
+                  ? 'TOTAL ESTIMADO DE LA OPERACIÓN (USD):'
+                  : 'TOTAL SERVICIO LOGÍSTICO & IMPUESTOS (USD):'}
+              </td>
               <td style={styles.tdTotalValue}>${grandTotal.toFixed(2)}</td>
             </tr>
           </tfoot>
