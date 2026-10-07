@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Cotizador() {
   // Datos del Cliente y Mercadería (Inician vacíos)
@@ -15,8 +15,34 @@ export default function Cotizador() {
   const [weightKg, setWeightKg] = useState('');
   const [cbm, setCbm] = useState('');
 
-  // Tipo de Cambio Manual para Pesos
+  // TIPO DE CAMBIO (NUEVA LÓGICA EN VIVO)
   const [exchangeRate, setExchangeRate] = useState('');
+  const [useLiveRate, setUseLiveRate] = useState(false);
+  const [liveRateType, setLiveRateType] = useState('blue');
+  const [isLoadingRate, setIsLoadingRate] = useState(false);
+
+  // Efecto para buscar el dólar en tiempo real
+  useEffect(() => {
+    if (!useLiveRate) return;
+
+    const fetchRate = async () => {
+      setIsLoadingRate(true);
+      try {
+        const res = await fetch(`https://dolarapi.com/v1/dolares/${liveRateType}`);
+        if (!res.ok) throw new Error('Error en la API de cotización');
+        const data = await res.json();
+        setExchangeRate(data.venta); // Usamos siempre el valor de Venta
+      } catch (error) {
+        console.error("Error obteniendo dólar:", error);
+        alert("⚠️ No se pudo conectar al servidor de cotizaciones. Podés ingresarlo manualmente.");
+        setUseLiveRate(false);
+      } finally {
+        setIsLoadingRate(false);
+      }
+    };
+
+    fetchRate();
+  }, [useLiveRate, liveRateType]);
 
   // Modalidad y Tarifas
   const [shippingMode, setShippingMode] = useState('maritimo_compartido');
@@ -65,7 +91,6 @@ export default function Cotizador() {
   };
 
   // --- CAPA DE SEGURIDAD MATEMÁTICA ---
-  // Convierte los campos vacíos ('') en 0 para que no se rompan las fórmulas
   const valGoods = Number(goodsValue) || 0;
   const valWeight = Number(weightKg) || 0;
   const valCbm = Number(cbm) || 0;
@@ -120,11 +145,14 @@ export default function Cotizador() {
   const totalTaxes = ddiAmount + statAmount + ivaAmount + ivaAdicAmount + gananciasAmount + iibbAmount;
   const activeLocalExpenses = (!isAllInOrDdp && enableLocalExpenses) ? valLocalExpenses : 0;
 
-  // Total final USD
+  // Total final USD y ARS
   const grandTotal = (enableGoodsValue ? valGoods : 0) + internationalFreight + insurance + totalTaxes + activeLocalExpenses + valServiceFee;
-  
-  // Total final ARS (solo se calcula si se ingresó un tipo de cambio)
   const grandTotalARS = grandTotal * valExchangeRate;
+
+  // Etiqueta dinámica para saber qué dólar se usó
+  const exchangeRateLabel = useLiveRate 
+    ? `T.C. ${liveRateType.charAt(0).toUpperCase() + liveRateType.slice(1)}` 
+    : 'T.C. Manual';
 
   // Formato para WhatsApp
   const generarTextoResumen = () => {
@@ -144,7 +172,7 @@ ${enableGoodsValue ? `💵 *Valor Mercadería (${incoterm}):*$${valGoods.toFixed
 ${enableInsurance ? `🛡️ *Seguro Estimado:* $${insurance.toFixed(2)} USD\n` : ''}🏛️ *Impuestos y Aduana:* $${totalTaxes.toFixed(2)} USD
 ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFixed(2)} USD\n` : ''}🤝 *Honorarios DCAM:* $${valServiceFee.toFixed(2)} USD
 ----------------------------------------
-💰 *TOTAL USD:* $${grandTotal.toFixed(2)} USD${valExchangeRate > 0 ? `\n🇦🇷 *TOTAL EN PESOS (T.C. $${valExchangeRate}):*$${grandTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ARS` : ''}`;
+💰 *TOTAL USD:* $${grandTotal.toFixed(2)} USD${valExchangeRate > 0 ? `\n🇦🇷 *TOTAL EN PESOS (${exchangeRateLabel} $${valExchangeRate}):*$${grandTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ARS` : ''}`;
   };
 
   const copiarAlPortapapeles = () => {
@@ -238,10 +266,51 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
             <label style={styles.label}>Volumen (m³ / CBM):</label>
             <input style={styles.input} type="number" step="0.01" value={cbm} onChange={(e) => setCbm(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Ej: 0.5" />
           </div>
-          {/* NUEVO: Campo manual para el dólar */}
+          
+          {/* CONTROL DE DÓLAR EN VIVO Y MANUAL */}
           <div>
-            <label style={{ ...styles.label, color: '#10b981' }}>Cotización Dólar (ARS):</label>
-            <input style={{ ...styles.input, borderColor: '#10b981' }} type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Ej: 1250 (Opcional)" />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <label style={{ ...styles.label, color: '#10b981', marginBottom: 0 }}>Cotización Dólar:</label>
+              <label style={{ fontSize: '11px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                <input 
+                  type="checkbox" 
+                  checked={useLiveRate} 
+                  onChange={(e) => {
+                    setUseLiveRate(e.target.checked);
+                    if (!e.target.checked) setExchangeRate('');
+                  }} 
+                />
+                En vivo
+              </label>
+            </div>
+
+            {useLiveRate ? (
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <select 
+                  style={{ ...styles.select, width: '50%', borderColor: '#10b981', padding: '6px' }} 
+                  value={liveRateType} 
+                  onChange={(e) => setLiveRateType(e.target.value)}
+                >
+                  <option value="oficial">Oficial</option>
+                  <option value="blue">Blue</option>
+                  <option value="cripto">Cripto</option>
+                </select>
+                <input 
+                  style={{ ...styles.input, width: '50%', borderColor: '#10b981', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', fontWeight: 'bold' }} 
+                  type="text" 
+                  value={isLoadingRate ? '⏳...' : exchangeRate} 
+                  readOnly 
+                />
+              </div>
+            ) : (
+              <input 
+                style={{ ...styles.input, borderColor: '#10b981' }} 
+                type="number" 
+                value={exchangeRate} 
+                onChange={(e) => setExchangeRate(e.target.value === '' ? '' : Number(e.target.value))} 
+                placeholder="Ingresar manual (ARS)" 
+              />
+            )}
           </div>
         </div>
 
@@ -445,11 +514,10 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               </td>
               <td style={styles.tdTotalValue}>${grandTotal.toFixed(2)}</td>
             </tr>
-            {/* NUEVO: Fila condicional para mostrar pesos si hay cotización cargada */}
             {valExchangeRate > 0 && (
               <tr style={{ background: '#f1f5f9', borderTop: '1px solid #cbd5e1' }}>
                 <td colSpan={2} style={{ ...styles.tdTotalLabel, color: '#0f172a' }}>
-                  TOTAL EQUIVALENTE EN PESOS (T.C. ${valExchangeRate}):
+                  TOTAL EQUIVALENTE EN PESOS ({exchangeRateLabel} ${valExchangeRate}):
                 </td>
                 <td style={{ ...styles.tdTotalValue, color: '#0f172a' }}>
                   ${grandTotalARS.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS
