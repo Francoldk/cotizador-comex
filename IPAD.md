@@ -23,9 +23,7 @@ En el repositorio `Francoldk/cotizador-comex`, incorporar:
 
 Desplegar con la configuración actual de Next.js/Vercel. No requiere dependencias, claves ni variables nuevas. El envío sigue usando `POST /api/send-quote`.
 
-Dirección prevista del sitio registrado en el repositorio:
-
-`https://cotizador-comex.vercel.app/ipad/index.html`
+En la dirección donde ya abrís el cotizador, agregá `/ipad/index.html`. Usá el dominio activo configurado en Vercel; la dirección de inicio guardada como metadato del repositorio puede estar desactualizada.
 
 Para agregar el ícono: Safari → Compartir → Agregar a inicio → Agregar.
 
