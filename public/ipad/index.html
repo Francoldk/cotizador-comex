@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="DCAM Cotizador">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no">
+  <title>DCAM · Cotizador para iPad</title>
+  <link rel="apple-touch-icon" href="./icon.png">
+  <link rel="icon" href="./icon.png" type="image/png">
+  <link rel="stylesheet" href="./app.css?v=1">
+</head>
+<body>
+  <noscript>Activá JavaScript en Ajustes &gt; Safari &gt; Avanzado para calcular la cotización.</noscript>
+  <header class="topbar no-print">
+    <img src="./icon.png" alt="De China al Mundo" width="42" height="42">
+    <div class="brand"><strong>DE CHINA AL MUNDO</strong><span>Cotizador Comex · iPad</span></div>
+    <button id="install" class="quiet" type="button">Agregar a Inicio</button>
+  </header>
+  <nav class="tabs no-print" aria-label="Vistas del cotizador">
+    <button id="edit-tab" class="active" type="button" aria-pressed="true">1. Preparar</button>
+    <button id="quote-tab" type="button" aria-pressed="false">2. Ver cotización</button>
+  </nav>
+  <main id="main" class="layout">
+    <section id="editor" class="editor no-print" aria-label="Datos de la cotización">
+      <div class="section-heading"><p class="eyebrow">COTIZACIÓN A MEDIDA</p><h1>Tu próxima operación.</h1><p>Completá los datos y revisá el detalle antes de enviar.</p></div>
+      <form id="quote-form">
+        <section class="card"><h2>Cliente y mercadería</h2><div class="fields">
+          <div class="field"><label for="clientName">Cliente / Razón social</label><input id="clientName" type="text" maxlength="160" placeholder="Nombre del cliente"></div>
+          <div class="field"><label for="clientPhone">WhatsApp del cliente</label><input id="clientPhone" type="tel" maxlength="40" placeholder="5493512345678"></div>
+          <div class="field"><label for="productDesc">Producto / Descripción</label><input id="productDesc" type="text" maxlength="500" placeholder="Mercadería a importar"></div>
+          <div class="field"><label for="hscode">Posición arancelaria</label><input id="hscode" type="text" maxlength="60" placeholder="Ej. 8708.99.90"></div>
+          <div class="field"><label for="incoterm">Condición de compra</label><select id="incoterm"><option value="EXW">EXW · En fábrica</option><option value="FOB">FOB · Puesto en puerto</option><option value="CIF">CIF · Costo, flete y seguro</option><option value="DDP">DDP · Entregado con impuestos</option></select></div>
+          <div class="field"><label for="goodsValue">Valor de mercadería · USD</label><input id="goodsValue" type="number" step="any" placeholder="0.00"></div>
+          <div class="field"><label for="weightKg">Peso real · kg</label><input id="weightKg" type="number" step="any" placeholder="0"></div>
+          <div class="field"><label for="cbm">Volumen · m³ / CBM</label><input id="cbm" type="number" step="any" placeholder="0.00"></div>
+        </div></section>
+        <section class="card"><h2>Modalidad de envío</h2><div id="modes" class="mode-grid">
+          <button type="button" data-mode="maritimo_compartido"><strong>Compartido marítimo</strong><span>USD 8.50 / kg facturable</span></button>
+          <button type="button" data-mode="maritimo_cbm"><strong>Marítimo por m³</strong><span>USD 350.00 / m³</span></button>
+          <button type="button" data-mode="courier_aereo"><strong>Courier aéreo</strong><span>USD 16.50 / kg facturable</span></button>
+          <button type="button" data-mode="all_in_aereo"><strong>All In aéreo</strong><span>USD 48.00 / kg facturable</span></button>
+        </div><div class="fields">
+          <div class="field"><label id="freight-label" for="unitFreightRate">Tarifa de flete · USD</label><input id="unitFreightRate" type="number" step="any"></div>
+          <div class="field"><label for="serviceFee">Honorarios DCAM · USD</label><input id="serviceFee" type="number" step="any" placeholder="0.00"></div>
+        </div><p id="weight-hint" class="hint"></p></section>
+        <section class="card"><h2>Tipo de cambio</h2>
+          <label class="check"><input id="useLiveRate" type="checkbox"> Usar dólar en vivo</label>
+          <div class="fields">
+            <div id="rate-type-field" class="field hidden"><label for="liveRateType">Cotización</label><select id="liveRateType"><option value="oficial">Oficial</option><option value="blue">Blue</option><option value="cripto">Cripto</option></select></div>
+            <div class="field"><label for="exchangeRate">ARS por USD · Venta</label><input id="exchangeRate" type="number" step="any" placeholder="Ingresar valor manual"></div>
+          </div><button id="refresh-rate" class="text-button hidden" type="button">Actualizar dólar</button><p id="rate-status" class="hint" role="status">Ingresá un tipo de cambio para ver el total en pesos.</p>
+        </section>
+        <section class="card"><h2>Qué incluye el total</h2>
+          <label class="check"><input id="enableGoodsValue" type="checkbox"> Incluir valor de mercadería</label>
+          <label class="check"><input id="enableInsurance" type="checkbox"> Incluir seguro estimado del 1%</label>
+          <label class="check"><input id="enableLocalExpenses" type="checkbox"> Incluir gastos locales</label>
+          <div class="fields"><div class="field"><label for="localExpenses">Gastos locales · USD</label><input id="localExpenses" type="number" step="any" placeholder="0.00"></div></div>
+          <button id="tax-toggle" class="tax-toggle" type="button" aria-expanded="false" aria-controls="taxes">Ajustar alícuotas impositivas +</button>
+          <div id="taxes" class="hidden">
+            <div class="tax-field"><label class="check"><input id="enableDdi" type="checkbox"> Derechos de importación</label><label class="sr-only" for="ddiRate">DDI en porcentaje</label><input id="ddiRate" type="number" step="any"><span>%</span></div>
+            <div class="tax-field"><label class="check"><input id="enableStat" type="checkbox"> Tasa de estadística</label><label class="sr-only" for="statRate">Estadística en porcentaje</label><input id="statRate" type="number" step="any"><span>%</span></div>
+            <div class="tax-field"><label class="check"><input id="enableIva" type="checkbox"> IVA general</label><label class="sr-only" for="ivaRate">IVA en porcentaje</label><input id="ivaRate" type="number" step="any"><span>%</span></div>
+            <div class="tax-field"><label class="check"><input id="enableIvaAdic" type="checkbox"> IVA adicional</label><label class="sr-only" for="ivaAdicRate">IVA adicional en porcentaje</label><input id="ivaAdicRate" type="number" step="any"><span>%</span></div>
+            <div class="tax-field"><label class="check"><input id="enableGanancias" type="checkbox"> Ganancias</label><label class="sr-only" for="gananciasRate">Ganancias en porcentaje</label><input id="gananciasRate" type="number" step="any"><span>%</span></div>
+            <div class="tax-field"><label class="check"><input id="enableIibb" type="checkbox"> Ingresos brutos</label><label class="sr-only" for="iibbRate">IIBB en porcentaje</label><input id="iibbRate" type="number" step="any"><span>%</span></div>
+          </div><p id="tax-hint" class="hint"></p>
+        </section>
+      </form>
+    </section>
+    <section id="quotation" class="quotation" aria-label="Cotización de importación">
+      <div class="actions no-print"><button id="print" type="button">Imprimir</button><button id="copy" type="button">Copiar resumen</button><button id="send" class="send" type="button">Enviar por WhatsApp</button></div>
+      <p id="action-status" class="action-status no-print" role="status" aria-live="polite"></p>
+      <article id="paper" class="paper">
+        <header class="paper-header"><img src="./icon.png" alt="De China al Mundo" width="90" height="90"><div><p class="eyebrow">DE CHINA AL MUNDO</p><h2>COTIZACIÓN DE IMPORTACIÓN</h2><p id="quote-reference"></p></div></header>
+        <div id="quote-details" class="quote-details"></div>
+        <div class="table-wrap"><table><thead><tr><th>Concepto</th><th>Base / alícuota</th><th class="amount">USD</th></tr></thead><tbody id="quote-rows"></tbody></table></div>
+        <div class="paper-total"><span id="total-label">TOTAL ESTIMADO USD</span><strong id="quote-total">$0.00</strong></div>
+        <div id="ars-total" class="ars-total hidden"><span id="ars-label"></span><strong id="quote-ars"></strong></div>
+        <div class="terms"><strong>Términos y condiciones</strong><p>Cotización válida por 7 días hábiles sujeta a confirmación de bodega.</p><p id="exchange-term" class="hidden">La liquidación final en pesos se realizará al tipo de cambio acordado al momento del cierre.</p></div>
+      </article>
+    </section>
+  </main>
+  <footer class="totalbar no-print"><div><span>TOTAL ESTIMADO</span><strong id="quick-total">USD 0.00</strong><small id="quick-ars"></small></div><button id="view-quote" type="button">Ver cotización →</button></footer>
+  <div id="copy-dialog" class="overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="copy-title"><div class="dialog"><h2 id="copy-title">Resumen de la cotización</h2><p id="copy-help">Seleccioná el texto y elegí Copiar.</p><label class="sr-only" for="copy-text">Texto de la cotización</label><textarea id="copy-text" readonly rows="12"></textarea><button id="close-copy" type="button">Cerrar</button></div></div>
+  <div id="install-dialog" class="overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="install-title"><div class="dialog"><h2 id="install-title">Tu cotizador en Inicio</h2><p>En Safari, tocá <strong>Compartir</strong>, elegí <strong>Agregar a inicio</strong> y confirmá <strong>Agregar</strong>.</p><p>Después abrí el ícono <strong>DCAM Cotizador</strong>.</p><button id="close-install" type="button">Entendido</button></div></div>
+  <script src="./calculator.js?v=1"></script>
+  <script src="./app.js?v=1"></script>
+</body>
+</html>
