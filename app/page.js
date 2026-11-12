@@ -1,8 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import SolQuote from './sol-quote';
 
 export default function Cotizador() {
+  const [quoteVersion, setQuoteVersion] = useState('manual');
+  const [manualDocument, setManualDocument] = useState(null);
+  const isSol = quoteVersion === 'sol';
+
+  useEffect(() => {
+    setManualDocument({
+      date: new Date().toLocaleDateString('es-AR'),
+      reference: Math.floor(1000 + Math.random() * 9000)
+    });
+  }, []);
   // Datos del Cliente y Mercadería (Inician vacíos)
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -10,6 +21,7 @@ export default function Cotizador() {
   const [hscode, setHscode] = useState('');
   const [incoterm, setIncoterm] = useState('FOB');
   const [goodsValue, setGoodsValue] = useState('');
+  const [solGoodsValue, setSolGoodsValue] = useState(null);
   
   // Medidas y Pesos (Inician vacíos)
   const [weightKg, setWeightKg] = useState('');
@@ -181,7 +193,7 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
     setTimeout(() => setCopiado(false), 2500);
   };
 
-  const enviarWhatsAppDirecto = async () => {
+  const enviarWhatsAppDirecto = async (message) => {
     if (!clientPhone) {
       alert('Por favor ingresá el número de WhatsApp del cliente (ej: 549351...)');
       return;
@@ -191,7 +203,7 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
       const res = await fetch('/api/send-quote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: clientPhone.replace(/\D/g, ''), message: generarTextoResumen() })
+        body: JSON.stringify({ phone: clientPhone.replace(/\D/g, ''), message })
       });
       const data = await res.json();
       if (res.ok) alert('✅ ¡Cotización enviada con éxito desde el bot!');
@@ -209,6 +221,8 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
         @media print {
           body { background: #fff !important; padding: 0 !important; }
           .no-print { display: none !important; }
+          @page { margin: 15mm; }
+          .sol-sheet tr { break-inside: avoid; }
           .print-sheet {
             box-shadow: none !important;
             border: none !important;
@@ -219,7 +233,7 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
         }
       `}</style>
 
-      <div style={styles.panel} className="no-print">
+      <div style={{ ...styles.panel, marginBottom: isSol ? 12 : 30 }} className="no-print">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
           <img src="/logo.png" alt="Logo" style={{ height: '36px', objectFit: 'contain' }} />
           <div>
@@ -228,23 +242,38 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           </div>
         </div>
 
+        <div role="group" aria-label="Versión del cotizador"
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {[['manual', 'Cotización manual'], ['sol', 'Cotización versión Sol']].map(([version, label]) => (
+            <button key={version} type="button" aria-pressed={quoteVersion === version}
+              style={quoteVersion === version ? styles.modeBtnActive : styles.modeBtn}
+              onClick={() => {
+                if (version === 'sol' && solGoodsValue === null) {
+                  setSolGoodsValue(incoterm === 'FOB' ? goodsValue : '');
+                }
+                setQuoteVersion(version);
+              }}>{label}</button>
+          ))}
+        </div>
+
         <div style={styles.formGrid}>
           <div>
-            <label style={styles.label}>Cliente / Razón Social:</label>
-            <input style={styles.input} type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ej: Transportes SRL" />
+            <label htmlFor="clientName" style={styles.label}>Cliente / Razón Social:</label>
+            <input id="clientName" style={styles.input} type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ej: Transportes SRL" />
           </div>
           <div>
-            <label style={styles.label}>WhatsApp Cliente:</label>
-            <input style={styles.input} type="text" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Ej: 5493512345678" />
+            <label htmlFor="clientPhone" style={styles.label}>WhatsApp Cliente:</label>
+            <input id="clientPhone" style={styles.input} type="text" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Ej: 5493512345678" />
           </div>
           <div>
-            <label style={styles.label}>Producto / Descripción:</label>
-            <input style={styles.input} type="text" value={productDesc} onChange={(e) => setProductDesc(e.target.value)} placeholder="Ej: Repuestos de autos" />
+            <label htmlFor="productDesc" style={styles.label}>Producto / Descripción:</label>
+            <input id="productDesc" style={styles.input} type="text" value={productDesc} onChange={(e) => setProductDesc(e.target.value)} placeholder="Ej: Repuestos de autos" />
           </div>
           <div>
-            <label style={styles.label}>Posición Arancelaria:</label>
-            <input style={styles.input} type="text" value={hscode} onChange={(e) => setHscode(e.target.value)} placeholder="Ej: 8708.99.90" />
+            <label htmlFor="hscode" style={styles.label}>Posición Arancelaria:</label>
+            <input id="hscode" style={styles.input} type="text" value={hscode} onChange={(e) => setHscode(e.target.value)} placeholder="Ej: 8708.99.90" />
           </div>
+          {!isSol && (
           <div>
             <label style={styles.label}>Condición / Incoterm:</label>
             <select style={styles.select} value={incoterm} onChange={(e) => setIncoterm(e.target.value)}>
@@ -254,17 +283,23 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
               <option value="DDP">DDP (Entregado con impuestos)</option>
             </select>
           </div>
+          )}
           <div>
-            <label style={styles.label}>Valor Mercadería USD:</label>
-            <input style={styles.input} type="number" value={goodsValue} onChange={(e) => setGoodsValue(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Ej: 1000" />
+            <label htmlFor="goodsValue" style={styles.label}>{isSol ? 'Valor FOB total (USD):' : 'Valor Mercadería USD:'}</label>
+            <input id="goodsValue" style={styles.input} type="number" value={isSol ? solGoodsValue ?? '' : goodsValue}
+              onChange={e => {
+                const value = e.target.value === '' ? '' : Number(e.target.value);
+                if (isSol) setSolGoodsValue(value);
+                else setGoodsValue(value);
+              }} placeholder="Ej: 1000" />
           </div>
           <div>
-            <label style={styles.label}>Peso Real (Kg):</label>
-            <input style={styles.input} type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Ej: 50" />
+            <label htmlFor="weightKg" style={styles.label}>Peso Real (Kg):</label>
+            <input id="weightKg" style={styles.input} type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Ej: 50" />
           </div>
           <div>
-            <label style={styles.label}>Volumen (m³ / CBM):</label>
-            <input style={styles.input} type="number" step="0.01" value={cbm} onChange={(e) => setCbm(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Ej: 0.5" />
+            <label htmlFor="cbm" style={styles.label}>Volumen (m³ / CBM):</label>
+            <input id="cbm" style={styles.input} type="number" step="0.01" value={cbm} onChange={(e) => setCbm(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Ej: 0.5" />
           </div>
           
           {/* CONTROL DE DÓLAR EN VIVO Y MANUAL */}
@@ -314,6 +349,8 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           </div>
         </div>
 
+        {!isSol && (
+          <>
         <div style={{ marginTop: '16px' }}>
           <label style={styles.label}>Modalidad de Envío y Tarifa:</label>
           <div style={styles.modeGrid}>
@@ -404,21 +441,28 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
           <button style={styles.printBtn} onClick={() => window.print()}>🖨️ Imprimir / Guardar PDF</button>
-          <button style={{ ...styles.waBtn, opacity: enviando ? 0.7 : 1 }} onClick={enviarWhatsAppDirecto} disabled={enviando}>
+          <button style={{ ...styles.waBtn, opacity: enviando ? 0.7 : 1 }} onClick={() => enviarWhatsAppDirecto(generarTextoResumen())} disabled={enviando}>
             {enviando ? '⏳ Enviando...' : '🚀 Enviar por WhatsApp'}
           </button>
           <button style={styles.copyBtn} onClick={copiarAlPortapapeles}>{copiado ? '✅ Copiado' : '📋 Copiar Resumen'}</button>
         </div>
+          </>
+        )}
       </div>
 
-      {/* PLANILLA FORMAL EJECUTIVA */}
+      <SolQuote active={isSol} styles={styles} clientName={clientName} clientPhone={clientPhone}
+        product={productDesc} hscode={hscode} weight={weightKg} volume={cbm} goods={solGoodsValue ?? ''}
+        exchangeRate={valExchangeRate} exchangeRateLabel={exchangeRateLabel}
+        sending={enviando} send={enviarWhatsAppDirecto} />
+
+      {!isSol && (
       <div style={styles.quoteCard} className="print-sheet">
         <div style={styles.quoteHeader}>
           <img src="/logo.png" alt="De China Al Mundo" style={{ maxHeight: '55px', objectFit: 'contain' }} />
           <div style={{ textAlign: 'right' }}>
             <h1 style={{ margin: 0, fontSize: '18px', color: '#881337', fontWeight: '900' }}>COTIZACIÓN DE IMPORTACIÓN</h1>
             <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
-              Fecha: {new Date().toLocaleDateString('es-AR')} | Ref: DCAM-{Math.floor(1000 + Math.random() * 9000)}
+              Fecha: {manualDocument?.date} | Ref: DCAM-{manualDocument?.reference}
             </p>
           </div>
         </div>
@@ -536,6 +580,7 @@ ${activeLocalExpenses > 0 ? `🏢 *Gastos Locales:* $${activeLocalExpenses.toFix
           </ul>
         </div>
       </div>
+      )}
     </div>
   );
 }
