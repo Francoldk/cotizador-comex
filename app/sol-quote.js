@@ -45,6 +45,7 @@ export default function SolQuote({
       // Keep edits usable in the current session.
     }
   }, [settings, settingsLoaded]);
+  const [showFob, setShowFob] = useState(true);
   const [proforma, setProforma] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
   const [document, setDocument] = useState({
@@ -62,6 +63,8 @@ export default function SolQuote({
   );
   const title = proforma ? 'Factura proforma' : 'Cotización de importación';
   const rate = settings.rates[mode];
+  const conversionLabel = showFob ? 'Equivalente con mercadería' : 'Equivalente del servicio';
+  const convertedAmount = (showFob ? quote.total : quote.service) * exchangeRate;
   const date = new Date().toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
   const setOption = (key, value) => setSettings(current => ({ ...current, [key]: value }));
   const setDocumentField = (key, value) => setDocument(current => ({ ...current, [key]: value }));
@@ -73,11 +76,11 @@ export default function SolQuote({
     `Modalidad: ${solModes[mode].label}`,
     weight ? `Peso real: ${weight} kg` : '',
     volume ? `Volumen: ${volume} m³` : '',
-    `Mercadería FOB: ${usd(quote.fob)}`,
+    showFob && `Mercadería FOB: ${usd(quote.fob)}`,
     ...quote.lines.map(line => `${line.label}: ${usd(line.amount)}`),
     `*Total del servicio: ${usd(quote.service)}*`,
-    `*Total con mercadería: ${usd(quote.total)}*`,
-    exchangeRate > 0 ? `Equivalente con mercadería: ARS ${format.format(quote.total * exchangeRate)} (${exchangeRateLabel} ${exchangeRate})` : ''
+    showFob && `*Total con mercadería: ${usd(quote.total)}*`,
+    exchangeRate > 0 ? `${conversionLabel}: ARS ${format.format(convertedAmount)} (${exchangeRateLabel} ${exchangeRate})` : ''
   ].filter(Boolean).join('\n');
 
   const copy = async () => {
@@ -130,6 +133,11 @@ export default function SolQuote({
           <Field label="Validez (días hábiles)" styles={styles} numeric value={document.validity}
             onChange={value => setDocumentField('validity', value)} />
         </div>
+
+        <label style={{ ...styles.checkboxLabel, marginTop: 12 }}>
+          <input type="checkbox" checked={showFob} onChange={event => setShowFob(event.target.checked)} />
+          Mostrar valor FOB al cliente
+        </label>
 
         {proforma && (
           <div style={{ ...styles.formGrid, marginTop: 12 }}>
@@ -202,15 +210,15 @@ export default function SolQuote({
               </tr>
             </thead>
             <tbody>
-              <tr>
+              {showFob && <tr>
                 <td style={styles.td}>Mercadería FOB</td>
                 <td style={styles.tdCenter}>{proforma ? `${document.quantity} u. · ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 8 }).format(quote.fob / Number(document.quantity))} USD/u.` : product}</td>
                 <td style={styles.tdRight}>{format.format(quote.fob)}</td>
-              </tr>
+              </tr>}
               {quote.lines.map(line => (
                 <tr key={line.label}>
                   <td style={styles.td}>{line.label}</td>
-                  <td style={styles.tdCenter}>{line.detail}</td>
+                  <td style={styles.tdCenter}>{!showFob && line.detail.endsWith('% del FOB') ? 'Estimado' : line.detail}</td>
                   <td style={styles.tdRight}>{format.format(line.amount)}</td>
                 </tr>
               ))}
@@ -220,14 +228,14 @@ export default function SolQuote({
                 <td colSpan={2} style={styles.tdTotalLabel}>Total del servicio</td>
                 <td style={styles.tdTotalValue}>{usd(quote.service)}</td>
               </tr>
-              <tr style={styles.tfootRow}>
+              {showFob && <tr style={styles.tfootRow}>
                 <td colSpan={2} style={styles.tdTotalLabel}>Total con mercadería</td>
                 <td style={styles.tdTotalValue}>{usd(quote.total)}</td>
-              </tr>
+              </tr>}
               {exchangeRate > 0 && (
                 <tr>
-                  <td colSpan={2} style={styles.tdTotalLabel}>Equivalente con mercadería ({exchangeRateLabel} {exchangeRate})</td>
-                  <td style={styles.tdTotalValue}>ARS {format.format(quote.total * exchangeRate)}</td>
+                  <td colSpan={2} style={styles.tdTotalLabel}>{conversionLabel} ({exchangeRateLabel} {exchangeRate})</td>
+                  <td style={styles.tdTotalValue}>ARS {format.format(convertedAmount)}</td>
                 </tr>
               )}
             </tfoot>
